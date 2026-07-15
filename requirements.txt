@@ -1,10 +1,17 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
 langchain>=0.2.16
 langchain-community>=0.2.16
 langchain-core>=0.2.38
 langchain-openai>=0.1.23
 langgraph>=0.2.19
+llama-index>=0.11.0
 pydantic>=2.7
+pydantic-settings>=2.3
 pytest>=8.2
 SQLAlchemy>=2.0.31
+psycopg[binary]>=3.2
+pgvector>=0.3.3
+redis>=5.0
 PyMySQL>=1.1.1
 cryptography>=42.0
