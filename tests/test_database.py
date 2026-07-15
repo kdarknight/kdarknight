@@ -24,3 +24,18 @@ def test_create_handoff_ticket(tmp_path):
     ticket_id = store.create_handoff_ticket("用户要求转人工")
 
     assert ticket_id == 1
+
+
+def test_order_lookup_uses_cache(tmp_path):
+    store = BusinessDataStore(f"sqlite:///{tmp_path / 'business.db'}")
+    store.create_schema()
+    store.seed_demo_data()
+
+    first = store.get_order("A1001")
+    second = store.get_order("A1001")
+
+    assert first == second
+    stats = store.cache_stats()
+    assert stats is not None
+    assert stats.hits == 1
+    assert stats.misses == 1

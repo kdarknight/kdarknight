@@ -7,6 +7,8 @@ from difflib import SequenceMatcher
 
 from langchain_core.documents import Document
 
+from .cache import TTLCache, cache_enabled, cache_max_size, cache_ttl_seconds
+
 
 FAQ_DOCUMENTS: list[Document] = [
     Document(
@@ -40,7 +42,7 @@ FAQ_DOCUMENTS: list[Document] = [
 ]
 
 
-@dataclass(frozen=True)
+@dataclass
 class SimpleKnowledgeBase:
     """A tiny dependency-free retriever suitable for demos and tests.
 
@@ -49,8 +51,19 @@ class SimpleKnowledgeBase:
     """
 
     documents: tuple[Document, ...] = tuple(FAQ_DOCUMENTS)
+    cache: TTLCache[list[Document]] | None = None
+
+    def __post_init__(self) -> None:
+        if self.cache is None and cache_enabled():
+            self.cache = TTLCache[list[Document]](ttl_seconds=cache_ttl_seconds(), max_size=cache_max_size())
 
     def retrieve(self, query: str, limit: int = 2) -> list[Document]:
+        cache_key = ("faq", query, limit)
+        if self.cache is not None:
+            return self.cache.get_or_set(cache_key, lambda: self._retrieve_uncached(query, limit))
+        return self._retrieve_uncached(query, limit)
+
+    def _retrieve_uncached(self, query: str, limit: int) -> list[Document]:
         scored = sorted(
             self.documents,
             key=lambda doc: _score(query, doc.page_content + str(doc.metadata)),

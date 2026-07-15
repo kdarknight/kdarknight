@@ -40,6 +40,14 @@ export CUSTOMER_SERVICE_SEED_DEMO_DATA=1     # 可选，默认写入演示数据
 python -m customer_service_agent.init_db
 ```
 
+缓存默认启用，用于减少重复订单查询和 FAQ 检索计算；可按需调整：
+
+```bash
+export CUSTOMER_SERVICE_CACHE_ENABLED=1
+export CUSTOMER_SERVICE_CACHE_TTL_SECONDS=300
+export CUSTOMER_SERVICE_CACHE_MAX_SIZE=512
+```
+
 如需在无 API Key 环境下体验流程，可启用规则兜底模型：
 
 ```bash
@@ -65,6 +73,15 @@ python -m customer_service_agent.cli
 - `customers`：客户姓名、手机号、会员等级。
 - `orders`：订单状态、商品、物流、退款状态。
 - `service_tickets`：人工转接工单和对话摘要。
+
+## 缓存机制
+
+项目提供进程内 TTL 缓存：
+
+- 订单查询：缓存 `BusinessDataStore.get_order()` 的订单快照，降低 MySQL 读压力。
+- FAQ 检索：缓存相同问题和 limit 的检索结果，减少重复排序计算。
+- 可观测性：`BusinessDataStore.cache_stats()` 可查看命中、未命中和当前条目数。
+- 失效策略：演示数据写入后自动清空订单缓存；TTL 到期或超过最大容量时自动淘汰。
 
 ## 测试
 

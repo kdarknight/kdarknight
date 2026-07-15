@@ -18,8 +18,11 @@ from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, String, Text, crea
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
+from .cache import TTLCache, cache_enabled, cache_max_size, cache_ttl_seconds
+
 DEFAULT_SQLITE_PATH = Path("customer_service.db")
 DEFAULT_DB_URL = f"sqlite:///{DEFAULT_SQLITE_PATH}"
+_CACHE_MISSING = object()
 
 
 class Base(DeclarativeBase):
@@ -104,10 +107,21 @@ class OrderSnapshot:
 class BusinessDataStore:
     """Repository for customer-service business data."""
 
-    def __init__(self, db_url: str | None = None, *, echo: bool = False):
+    def __init__(
+        self,
+        db_url: str | None = None,
+        *,
+        echo: bool = False,
+        order_cache: TTLCache[OrderSnapshot | None] | None = None,
+    ):
         self.db_url = db_url or os.getenv("CUSTOMER_SERVICE_DB_URL", DEFAULT_DB_URL)
         self.engine = create_engine(self.db_url, echo=echo, pool_pre_ping=True)
         self.session_factory = sessionmaker(self.engine, expire_on_commit=False)
+        self.order_cache = order_cache or (
+            TTLCache[OrderSnapshot | None](ttl_seconds=cache_ttl_seconds(), max_size=cache_max_size())
+            if cache_enabled()
+            else None
+        )
 
     def create_schema(self) -> None:
         Base.metadata.create_all(self.engine)
@@ -148,10 +162,30 @@ class BusinessDataStore:
                 ]
             )
             session.commit()
+            self.clear_cache()
 
     def get_order(self, order_id: str) -> OrderSnapshot | None:
+        normalized = order_id.strip().upper()
+        cache_key = ("order", normalized)
+        if self.order_cache is not None:
+            cached = self.order_cache.get(cache_key, default=_CACHE_MISSING)
+            if cached is not _CACHE_MISSING:
+                return cached
+        snapshot = self._load_order(normalized)
+        if self.order_cache is not None:
+            self.order_cache.set(cache_key, snapshot)
+        return snapshot
+
+    def clear_cache(self) -> None:
+        if self.order_cache is not None:
+            self.order_cache.clear()
+
+    def cache_stats(self):
+        return self.order_cache.stats() if self.order_cache is not None else None
+
+    def _load_order(self, normalized_order_id: str) -> OrderSnapshot | None:
         with self.session_factory() as session:
-            order = session.get(Order, order_id.strip().upper())
+            order = session.get(Order, normalized_order_id)
             if not order:
                 return None
             return _to_snapshot(order)
