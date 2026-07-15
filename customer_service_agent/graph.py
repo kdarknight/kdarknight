@@ -47,8 +47,10 @@ def get_chat_model() -> BaseChatModel | RuleBasedChatModel:
     if os.getenv("CUSTOMER_SERVICE_FAKE_LLM") == "1":
         return RuleBasedChatModel()
     return ChatOpenAI(
-        model=os.getenv("CUSTOMER_SERVICE_MODEL", "gpt-4o-mini"),
-        temperature=0.2,
+        model=os.getenv("CUSTOMER_SERVICE_LLM_MODEL", os.getenv("CUSTOMER_SERVICE_MODEL", "qwen-plus")),
+        api_key=os.getenv("CUSTOMER_SERVICE_LLM_API_KEY") or os.getenv("DASHSCOPE_API_KEY") or os.getenv("DEEPSEEK_API_KEY"),
+        base_url=os.getenv("CUSTOMER_SERVICE_LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        temperature=float(os.getenv("CUSTOMER_SERVICE_LLM_TEMPERATURE", "0.2")),
     )
 
 
